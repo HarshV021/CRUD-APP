@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $update_sql = "UPDATE posts SET title = '$title', content = '$content' WHERE id = $id AND user_id = $user_id";
     if (mysqli_query($conn, $update_sql)) {
         $msg = "✅ Post updated successfully!";
-        // Optional: Refresh post data
+        //  Refresh post data
         $post['title'] = $title;
         $post['content'] = $content;
     } else {

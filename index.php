@@ -13,7 +13,7 @@ $count_result = mysqli_query($conn, $count_sql);
 $total = mysqli_fetch_assoc($count_result)['total'];
 $totalPages = ceil($total / $limit);
 
-// Fetch posts with username and user_id
+// Fetch posts with username and user id
 $sql = "SELECT posts.*, users.username FROM posts JOIN users ON posts.user_id = users.id 
         WHERE title LIKE '%$search%' OR content LIKE '%$search%' 
         ORDER BY created_at DESC LIMIT $limit OFFSET $offset";
@@ -27,7 +27,7 @@ $result = mysqli_query($conn, $sql);
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <script>
-    // Apply dark mode early to prevent flash
+    // Apply dark mode 
     if (localStorage.getItem('darkMode') === 'true') {
       document.documentElement.classList.add('dark');
     }
@@ -82,7 +82,7 @@ $result = mysqli_query($conn, $sql);
       max-width: 300px;
     }
 
-    /* Dark Mode Styles */
+    
     .dark body {
       background-color: #121212;
       color: #e0e0e0;
@@ -128,7 +128,7 @@ $result = mysqli_query($conn, $sql);
 
 <body class="container mt-4">
 
-  <!-- Header -->
+ 
   <div class="d-flex justify-content-between mb-4 align-items-center header">
     <h2>📰 Blog Posts</h2>
     <div class="d-flex align-items-center">
@@ -140,7 +140,7 @@ $result = mysqli_query($conn, $sql);
         <a href="register.php" class="btn btn-success btn-sm">Register</a>
       <?php endif; ?>
 
-      <!-- 🌙 Dark Mode Toggle Button -->
+      <!-- Dark Mode Toggle Button -->
       <button id="darkToggle" class="btn btn-outline-secondary btn-sm dark-toggle">🌙 Toggle Dark</button>
     </div>
   </div>

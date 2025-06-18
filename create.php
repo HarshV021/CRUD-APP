@@ -12,7 +12,7 @@ $msg = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = mysqli_real_escape_string($conn, $_POST['title']);
     $content = mysqli_real_escape_string($conn, $_POST['content']);
-    $user_id = $_SESSION['user_id']; // 🔐 Get current user ID
+    $user_id = $_SESSION['user_id']; // Get current user ID
 
     $sql = "INSERT INTO posts (title, content, user_id, created_at) VALUES ('$title', '$content', $user_id, NOW())";
     if (mysqli_query($conn, $sql)) {
