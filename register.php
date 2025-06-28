@@ -5,23 +5,34 @@ include 'db.php';
 $msg = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = mysqli_real_escape_string($conn, $_POST['username']);
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
-    $confirm = $_POST['confirm_password'];
+    $confirm  = $_POST['confirm_password'];
 
-    if ($password !== $confirm) {
+    // ✅ Server-side validation
+    if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+        $msg = "❌ Username must be 3–20 characters and contain only letters, numbers, or underscores.";
+    } elseif (strlen($password) < 6) {
+        $msg = "❌ Password must be at least 6 characters.";
+    } elseif ($password !== $confirm) {
         $msg = "❌ Passwords do not match!";
     } else {
-        // Check if username exists
-        $check_sql = "SELECT * FROM users WHERE username = '$username'";
-        $check_result = mysqli_query($conn, $check_sql);
+        // ✅ Check if username exists
+        $check_stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
+        $check_stmt->bind_param("s", $username);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
 
-        if (mysqli_num_rows($check_result) > 0) {
+        if ($check_result->num_rows > 0) {
             $msg = "⚠️ Username already taken!";
         } else {
+            // ✅ Secure password hash and insert
             $hashed = password_hash($password, PASSWORD_DEFAULT);
-            $sql = "INSERT INTO users (username, password) VALUES ('$username', '$hashed')";
-            if (mysqli_query($conn, $sql)) {
+
+            $insert_stmt = $conn->prepare("INSERT INTO users (username, password) VALUES (?, ?)");
+            $insert_stmt->bind_param("ss", $username, $hashed);
+
+            if ($insert_stmt->execute()) {
                 $msg = "✅ Registered successfully! Please <a href='login.php'>login here</a>.";
             } else {
                 $msg = "❌ Registration failed. Please try again.";
@@ -30,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html>
@@ -64,15 +76,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <form method="POST">
       <div class="mb-3">
         <label class="form-label">Username</label>
-        <input type="text" name="username" class="form-control" required placeholder="Create a username">
+        <input 
+          type="text" 
+          name="username" 
+          class="form-control" 
+          required 
+          minlength="3" 
+          maxlength="20" 
+          pattern="^[a-zA-Z0-9_]+$" 
+          placeholder="Create a username">
       </div>
       <div class="mb-3">
         <label class="form-label">Password</label>
-        <input type="password" name="password" class="form-control" required placeholder="Create a password">
+        <input 
+          type="password" 
+          name="password" 
+          class="form-control" 
+          required 
+          minlength="6" 
+          placeholder="Create a password">
       </div>
       <div class="mb-3">
         <label class="form-label">Confirm Password</label>
-        <input type="password" name="confirm_password" class="form-control" required placeholder="Confirm password">
+        <input 
+          type="password" 
+          name="confirm_password" 
+          class="form-control" 
+          required 
+          minlength="6" 
+          placeholder="Confirm password">
       </div>
       <div class="d-grid">
         <button type="submit" class="btn btn-success">📝 Register</button>

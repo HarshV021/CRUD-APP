@@ -5,20 +5,33 @@ include 'db.php';
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = mysqli_real_escape_string($conn, $_POST['username']);
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    $sql = "SELECT * FROM users WHERE username = '$username'";
-    $result = mysqli_query($conn, $sql);
-    $user = mysqli_fetch_assoc($result);
-
-    if ($user && password_verify($password, $user['password'])) {
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['user_id'] = $user['id']; // checks user id  
-        header("Location: index.php");
-        exit();
+    // ✅ Server-side validation
+    if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+        $error = "❌ Invalid username format.";
     } else {
-        $error = "❌ Invalid username or password!";
+        // ✅ Secure query
+        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+
+        if ($user && $user['is_blocked']) {
+            $error = "❌ Your account has been blocked by an admin.";
+        }
+        // ✅ Verify password
+        else if ($user && password_verify($password, $user['password'])) {
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['role'] = $user['role'] ?? 'user';
+            header("Location: index.php");
+            exit();
+        } else {
+            $error = "❌ Invalid username or password!";
+        }
     }
 }
 ?>

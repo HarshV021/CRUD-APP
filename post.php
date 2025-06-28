@@ -4,23 +4,40 @@ include 'db.php';
 
 $post_id = $_GET['id'] ?? 0;
 
-// Fetch the post
-$post_sql = "SELECT posts.*, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE posts.id = $post_id";
-$post_result = mysqli_query($conn, $post_sql);
-$post = mysqli_fetch_assoc($post_result);
+// Fetch the post with author's username
+$post_stmt = $conn->prepare(
+    "SELECT posts.*, users.username 
+     FROM posts 
+     JOIN users ON posts.user_id = users.id 
+     WHERE posts.id = ?"
+);
+$post_stmt->bind_param("i", $post_id);
+$post_stmt->execute();
+$post_result = $post_stmt->get_result();
+$post = $post_result->fetch_assoc();
 
 if (!$post) {
     echo "<div style='margin:50px; font-family:sans-serif; color:red;'>❌ Post not found.</div>";
     exit();
 }
 
-// Add comment
+// Determine if user is post owner or admin/editor
+$is_owner = isset($_SESSION['user_id']) && $_SESSION['user_id'] == $post['user_id'];
+$is_admin = isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'editor']);
+
 $msg = "";
+
+// Handle comment submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
-    $comment = mysqli_real_escape_string($conn, $_POST['comment']);
+    $comment = $_POST['comment'];
     $user_id = $_SESSION['user_id'];
-    $insert_sql = "INSERT INTO comments (post_id, user_id, content) VALUES ($post_id, $user_id, '$comment')";
-    if (mysqli_query($conn, $insert_sql)) {
+
+    $insert_stmt = $conn->prepare(
+        "INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)"
+    );
+    $insert_stmt->bind_param("iis", $post_id, $user_id, $comment);
+
+    if ($insert_stmt->execute()) {
         $msg = "✅ Comment added!";
     } else {
         $msg = "❌ Failed to add comment.";
@@ -28,8 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
 }
 
 // Fetch comments
-$comments_sql = "SELECT comments.*, users.username FROM comments JOIN users ON comments.user_id = users.id WHERE post_id = $post_id ORDER BY created_at DESC";
-$comments_result = mysqli_query($conn, $comments_sql);
+$comments_stmt = $conn->prepare(
+    "SELECT comments.*, users.username 
+     FROM comments 
+     JOIN users ON comments.user_id = users.id 
+     WHERE post_id = ? 
+     ORDER BY created_at DESC"
+);
+$comments_stmt->bind_param("i", $post_id);
+$comments_stmt->execute();
+$comments_result = $comments_stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -64,8 +89,8 @@ $comments_result = mysqli_query($conn, $comments_sql);
   <?php endif; ?>
 
   <!-- Display Comments -->
-  <?php if (mysqli_num_rows($comments_result) > 0): ?>
-    <?php while ($comment = mysqli_fetch_assoc($comments_result)): ?>
+  <?php if ($comments_result->num_rows > 0): ?>
+    <?php while ($comment = $comments_result->fetch_assoc()): ?>
       <div class="border rounded p-3 mb-3 bg-light">
         <p class="mb-1"><b><?= htmlspecialchars($comment['username']) ?></b> <small class="text-muted"><?= $comment['created_at'] ?></small></p>
         <p class="mb-0"><?= nl2br(htmlspecialchars($comment['content'])) ?></p>

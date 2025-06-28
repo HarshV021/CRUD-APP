@@ -7,24 +7,59 @@ $page = $_GET['page'] ?? 1;
 $limit = 5;
 $offset = ($page - 1) * $limit;
 
-// Count total posts
-$count_sql = "SELECT COUNT(*) as total FROM posts WHERE title LIKE '%$search%' OR content LIKE '%$search%'";
-$count_result = mysqli_query($conn, $count_sql);
-$total = mysqli_fetch_assoc($count_result)['total'];
+$searchTerm = "%{$search}%";
+
+// Count total matching posts
+$count_stmt = $conn->prepare("SELECT COUNT(*) as total FROM posts WHERE title LIKE ? OR content LIKE ?");
+$count_stmt->bind_param("ss", $searchTerm, $searchTerm);
+$count_stmt->execute();
+$count_result = $count_stmt->get_result();
+$total = $count_result->fetch_assoc()['total'];
 $totalPages = ceil($total / $limit);
 
-// Fetch posts with username and user id
-$sql = "SELECT posts.*, users.username FROM posts JOIN users ON posts.user_id = users.id 
-        WHERE title LIKE '%$search%' OR content LIKE '%$search%' 
-        ORDER BY created_at DESC LIMIT $limit OFFSET $offset";
-$result = mysqli_query($conn, $sql);
+// Fetch posts with pagination and search
+$post_stmt = $conn->prepare(
+    "SELECT posts.*, users.username 
+     FROM posts 
+     JOIN users ON posts.user_id = users.id 
+     WHERE title LIKE ? OR content LIKE ? 
+     ORDER BY created_at DESC 
+     LIMIT ? OFFSET ?"
+);
+$post_stmt->bind_param("ssii", $searchTerm, $searchTerm, $limit, $offset);
+$post_stmt->execute();
+$result = $post_stmt->get_result();
+
+// RBAC Setup
+$is_logged_in = isset($_SESSION['user_id']);
+$current_user_id = $_SESSION['user_id'] ?? 0;
+$current_user_role = $_SESSION['role'] ?? 'guest';
+
+function can_edit_post($post_user_id) {
+    global $current_user_id, $current_user_role;
+    return $current_user_role === 'admin' || $current_user_role === 'editor' || $post_user_id == $current_user_id;
+}
+
+function can_delete_post($post_user_id) {
+    global $current_user_id, $current_user_role;
+    return $current_user_role === 'admin' || ($current_user_role === 'user' && $post_user_id == $current_user_id);
+}
+
+// Fetch logs if admin
+$logs_result = null;
+if ($current_user_role === 'admin') {
+    $log_stmt = $conn->prepare("SELECT logs.*, users.username FROM logs JOIN users ON logs.user_id = users.id ORDER BY logs.created_at DESC LIMIT 5");
+    $log_stmt->execute();
+    $logs_result = $log_stmt->get_result();
+}
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
   <title>Blog Posts</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+   
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <script>
     // Apply dark mode 
@@ -128,35 +163,33 @@ $result = mysqli_query($conn, $sql);
 
 <body class="container mt-4">
 
- 
   <div class="d-flex justify-content-between mb-4 align-items-center header">
     <h2>📰 Blog Posts</h2>
     <div class="d-flex align-items-center">
       <?php if (isset($_SESSION['username'])): ?>
-        <span class="me-2">👋 Hello, <b><?= htmlspecialchars($_SESSION['username']) ?></b></span>
+       <span class="me-2">
+        <a href="index.php" class="btn btn-outline-secondary btn-sm me-2">🏠 Home</a>
+        👋 Hello, <b><?= htmlspecialchars($_SESSION['username']) ?></b>
+        <span class="badge bg-secondary ms-2"><?= ucfirst($_SESSION['role'] ?? 'guest') ?></span>
+      </span>
         <a href="logout.php" class="btn btn-danger btn-sm">Logout</a>
       <?php else: ?>
         <a href="login.php" class="btn btn-primary btn-sm me-2">Login</a>
         <a href="register.php" class="btn btn-success btn-sm">Register</a>
       <?php endif; ?>
-
-      <!-- Dark Mode Toggle Button -->
       <button id="darkToggle" class="btn btn-outline-secondary btn-sm dark-toggle">🌙 Toggle Dark</button>
     </div>
   </div>
 
-  <!-- Search -->
   <form method="GET" class="mb-4 d-flex gap-2 search-bar">
     <input type="text" name="search" class="form-control" placeholder="Search posts..." value="<?= htmlspecialchars($search) ?>">
     <button type="submit" class="btn btn-outline-primary">Search</button>
   </form>
 
-  <!-- Create Button -->
   <?php if (isset($_SESSION['username'])): ?>
     <a href="create.php" class="btn btn-success mb-4">➕ Create New Post</a>
   <?php endif; ?>
 
-  <!-- Posts List -->
   <?php while($row = mysqli_fetch_assoc($result)): ?>
     <div class="card mb-4">
       <div class="card-body">
@@ -167,16 +200,31 @@ $result = mysqli_query($conn, $sql);
         <div>
           <a href="post.php?id=<?= $row['id'] ?>" class="btn btn-outline-primary btn-sm">View Post</a>
 
-          <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $row['user_id']): ?>
-            <a href="edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
-            <a href="delete.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete this post?')">Delete</a>
-          <?php endif; ?>
+          <?php
+  $is_logged_in = isset($_SESSION['user_id']);
+  $current_user_id = $_SESSION['user_id'] ?? 0;
+  $current_user_role = $_SESSION['role'] ?? 'guest';
+  $is_owner = $is_logged_in && $current_user_id == $row['user_id'];
+  $is_admin = in_array($current_user_role, ['admin', 'editor']);
+?>
+<?php
+$can_edit = ($current_user_role === 'admin' || $current_user_role === 'editor' || $is_owner);
+$can_delete = ($current_user_role === 'admin' || ($current_user_role === 'user' && $is_owner));
+?>
+
+<?php if ($can_edit): ?>
+  <a href="edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
+<?php endif; ?>
+
+<?php if ($can_delete): ?>
+  <a href="delete.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete this post?')">Delete</a>
+<?php endif; ?>
+
         </div>
       </div>
     </div>
   <?php endwhile; ?>
 
-  <!-- Pagination -->
   <nav>
     <ul class="pagination justify-content-center">
       <?php for ($i = 1; $i <= $totalPages; $i++): ?>
@@ -187,7 +235,24 @@ $result = mysqli_query($conn, $sql);
     </ul>
   </nav>
 
-  <!-- JS to Toggle Dark Mode -->
+  <?php if ($current_user_role === 'admin'): ?>
+    <hr>
+    <h4>📜 Recent Activity Logs</h4>
+    <?php if ($logs_result && $logs_result->num_rows > 0): ?>
+      <ul class="list-group mb-4">
+        <?php while ($log = $logs_result->fetch_assoc()): ?>
+          <li class="list-group-item">
+            <b><?= htmlspecialchars($log['username']) ?></b> — <?= htmlspecialchars($log['action']) ?> 
+            <small class="text-muted">(<?= $log['created_at'] ?>)</small><br>
+            <?= nl2br(htmlspecialchars($log['details'])) ?>
+          </li>
+        <?php endwhile; ?>
+      </ul>
+    <?php else: ?>
+      <p class="text-muted">No logs to show.</p>
+    <?php endif; ?>
+  <?php endif; ?>
+
   <script>
     document.getElementById('darkToggle').addEventListener('click', () => {
       document.documentElement.classList.toggle('dark');
