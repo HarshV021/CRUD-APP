@@ -74,8 +74,75 @@ $logs_result = $logs_stmt->get_result();
   <?php else: ?>
     <p class="text-muted">No logs available.</p>
   <?php endif; ?>
+<hr class="my-5">
+<h4>🔒 Manage Users</h4>
 
-  <a href="index.php" class="btn btn-secondary mt-4">⬅ Back to Home</a>
+<?php
+$users_stmt = $conn->prepare("SELECT id, username, email, role, is_blocked FROM users");
+$users_stmt->execute();
+$users_result = $users_stmt->get_result();
+?>
+
+<table class="table table-bordered table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>ID</th>
+      <th>Username</th>
+      <th>Email</th>
+      <th>Role</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <?php while ($user = $users_result->fetch_assoc()): ?>
+      <tr>
+        <td><?= $user['id'] ?></td>
+        <td><?= htmlspecialchars($user['username']) ?></td>
+        <td><?= htmlspecialchars($user['email']) ?></td>
+        <td>
+  <?php if ($user['id'] != $_SESSION['user_id']): ?>
+    <form method="POST" action="update_role.php" class="d-flex align-items-center">
+      <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
+      <select name="new_role" class="form-select form-select-sm me-2" onchange="this.form.submit()" required>
+        <option value="user" <?= $user['role'] === 'user' ? 'selected' : '' ?>>User</option>
+        <option value="editor" <?= $user['role'] === 'editor' ? 'selected' : '' ?>>Editor</option>
+        <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+      </select>
+    </form>
+  <?php else: ?>
+    <?= ucfirst($user['role']) ?>
+  <?php endif; ?>
+</td>
+
+        <td>
+          <?= $user['is_blocked'] ? '<span class="badge bg-danger">Blocked</span>' : '<span class="badge bg-success">Active</span>' ?>
+        </td>
+        <td>
+          <?php if ($user['id'] != $_SESSION['user_id']): ?>
+            <form method="POST" action="toggle_block.php" class="d-inline">
+              <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
+              <input type="hidden" name="block" value="<?= $user['is_blocked'] ? 0 : 1 ?>">
+              <button type="submit" class="btn btn-sm <?= $user['is_blocked'] ? 'btn-success' : 'btn-danger' ?>">
+                <?= $user['is_blocked'] ? 'Unblock' : 'Block' ?>
+              </button>
+            </form>
+          <?php else: ?>
+            <span class="text-muted">N/A</span>
+          <?php endif; ?>
+        </td>
+      </tr>
+    <?php endwhile; ?>
+  </tbody>
+</table>
+
+ <div class="mt-2 text-start">
+  <a href="index.php" class="btn btn-outline-secondary btn-sm px-4 py-2 shadow-sm">
+    ⬅ Back to Home
+  </a>
+</div>
+
+
 
 </body>
 </html>

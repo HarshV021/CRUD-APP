@@ -67,6 +67,19 @@ if ($current_user_role === 'admin') {
       document.documentElement.classList.add('dark');
     }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+  function toggleReportForm(postId) {
+    const form = document.getElementById('report-form-' + postId);
+    if (form.classList.contains('d-none')) {
+      form.classList.remove('d-none');
+    } else {
+      form.classList.add('d-none');
+    }
+  }
+</script>
+
+
 
   <style>
     body {
@@ -158,10 +171,47 @@ if ($current_user_role === 'admin') {
     .dark-toggle {
       margin-left: 10px;
     }
+    .dark ::placeholder {
+  color: #ccc; /* light gray for visibility in dark mode */
+}
+
+    .flash-popup {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  background-color: #d1e7dd;
+  color: #0f5132;
+  border: 1px solid #badbcc;
+  padding: 12px 20px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  font-weight: 500;
+  text-align: center;
+  animation: fadeOut 4s forwards;
+  font-size: 16px;
+}
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
   </style>
 </head>
 
 <body class="container mt-4">
+ 
+<?php if (isset($_SESSION['flash'])): ?>
+  <div class="flash-popup" id="flashPopup">
+    <?= $_SESSION['flash'] ?>
+  </div>
+  <?php unset($_SESSION['flash']); ?>
+<?php endif; ?>
+
+
 
   <div class="d-flex justify-content-between mb-4 align-items-center header">
     <h2>📰 Blog Posts</h2>
@@ -187,8 +237,18 @@ if ($current_user_role === 'admin') {
   </form>
 
   <?php if (isset($_SESSION['username'])): ?>
-    <a href="create.php" class="btn btn-success mb-4">➕ Create New Post</a>
-  <?php endif; ?>
+  <div class="mb-4">
+    <div class="d-flex flex-wrap gap-2">
+      <a href="create.php" class="btn btn-success">➕ Create New Post</a>
+
+      <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+        <a href="admin.php" class="btn btn-warning">🧑‍💼 Admin Dashboard</a>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
+
+
 
   <?php while($row = mysqli_fetch_assoc($result)): ?>
     <div class="card mb-4">
@@ -220,7 +280,37 @@ $can_delete = ($current_user_role === 'admin' || ($current_user_role === 'user' 
   <a href="delete.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Delete this post?')">Delete</a>
 <?php endif; ?>
 
-        </div>
+<?php if ($is_logged_in && $row['user_id'] != $current_user_id): ?>
+  <div class="text-end mt-2" id="report-section-<?= $row['id'] ?>">
+    <!-- Initial Report Button -->
+    <button type="button" class="btn btn-outline-danger btn-sm" onclick="toggleReportForm(<?= $row['id'] ?>)">
+      🚩 Report
+    </button>
+
+    <!-- Hidden Report Form -->
+    <form method="POST" action="report_user.php" class="d-none mt-2 report-form" id="report-form-<?= $row['id'] ?>">
+      <input type="hidden" name="reported_id" value="<?= $row['user_id'] ?>">
+      <input type="hidden" name="post_id" value="<?= $row['id'] ?>">
+
+      <div class="d-flex flex-wrap justify-content-end align-items-center gap-2">
+        <select name="reason" class="form-select form-select-sm w-auto" required>
+          <option value="" disabled selected>🚩 Reason</option>
+          <option value="Spam or misleading">Spam or misleading</option>
+          <option value="Offensive content">Offensive content</option>
+          <option value="Harassment">Harassment</option>
+          <option value="Fake news / Misinformation">Fake news / Misinformation</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <input type="text" name="extra_reason" placeholder="Details (optional)" class="form-control form-control-sm w-auto">
+
+        <button type="submit" class="btn btn-outline-danger btn-sm">Submit Report</button>
+      </div>
+    </form>
+  </div>
+<?php endif; ?>
+
+   </div>
       </div>
     </div>
   <?php endwhile; ?>
@@ -260,6 +350,19 @@ $can_delete = ($current_user_role === 'admin' || ($current_user_role === 'user' 
       localStorage.setItem('darkMode', isDark);
     });
   </script>
+  <script>
+  const searchInput = document.querySelector('input[name="search"]');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      if (this.value.trim() === '') {
+        // Redirect to home page without query params
+        window.location.href = 'index.php';
+      }
+    });
+  }
+</script>
+
 
 </body>
 </html>

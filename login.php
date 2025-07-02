@@ -5,32 +5,28 @@ include 'db.php';
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = trim($_POST['username']);
+    $login = trim($_POST['login']);  // Can be username or email
     $password = $_POST['password'];
 
-    // ✅ Server-side validation
-    if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
-        $error = "❌ Invalid username format.";
+    if (!filter_var($login, FILTER_VALIDATE_EMAIL) && !preg_match('/^[a-zA-Z0-9_]{3,20}$/', $login)) {
+        $error = "❌ Enter a valid username or email.";
     } else {
-        // ✅ Secure query
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
-        $stmt->bind_param("s", $username);
+        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
+        $stmt->bind_param("ss", $login, $login);
         $stmt->execute();
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
 
         if ($user && $user['is_blocked']) {
             $error = "❌ Your account has been blocked by an admin.";
-        }
-        // ✅ Verify password
-        else if ($user && password_verify($password, $user['password'])) {
+        } elseif ($user && password_verify($password, $user['password'])) {
             $_SESSION['username'] = $user['username'];
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['role'] = $user['role'] ?? 'user';
             header("Location: index.php");
             exit();
         } else {
-            $error = "❌ Invalid username or password!";
+            $error = "❌ Invalid login credentials!";
         }
     }
 }
@@ -66,12 +62,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <form method="POST">
       <div class="mb-3">
-        <label class="form-label">Username</label>
-        <input type="text" name="username" class="form-control" required placeholder="Enter your username">
+        <label class="form-label">Username or Email</label>
+        <input 
+          type="text" 
+          name="login" 
+          class="form-control" 
+          required 
+          placeholder="Enter your username or email"
+          autocomplete="username">
       </div>
       <div class="mb-3">
         <label class="form-label">Password</label>
-        <input type="password" name="password" class="form-control" required placeholder="Enter your password">
+        <input 
+          type="password" 
+          name="password" 
+          class="form-control" 
+          required 
+          placeholder="Enter your password"
+          autocomplete="current-password">
       </div>
       <div class="d-grid">
         <button type="submit" class="btn btn-primary">🔓 Login</button>
